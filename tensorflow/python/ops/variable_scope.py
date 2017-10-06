@@ -1780,16 +1780,25 @@ class variable_scope(object):  # pylint: disable=invalid-name
         raise TypeError("VariableScope: name_or_scope must be a string or "
                         "VariableScope.")
       if isinstance(self._name_or_scope, six.string_types):
-        name_scope = self._name_or_scope
+        name = self._name_or_scope
       else:
-        name_scope = self._name_or_scope.name.split("/")[-1]
-      if name_scope:
-        self._current_name_scope = ops.name_scope(name_scope)
-        current_name_scope_name = self._current_name_scope.__enter__()
+        name = self._name_or_scope.name.split("/")[-1]
+      if name:
         if isinstance(self._name_or_scope, six.string_types):
-          old_name_scope = current_name_scope_name
+          self._current_name_scope = ops.name_scope(name)
         else:
-          old_name_scope = self._name_or_scope.original_name_scope
+          parent_name_scope = ops.get_default_graph().get_name_scope()
+          if parent_name_scope:
+            new_name_scope = parent_name_scope + "/" + name + "/"
+          else:
+            new_name_scope = name + "/"
+          original_name_scope = self._name_or_scope.original_name_scope
+          # reuse name_scope if possible; otherwise create new one.
+          if new_name_scope == original_name_scope:
+            self._current_name_scope = ops.name_scope(original_name_scope)
+          else:
+            self._current_name_scope = ops.name_scope(name)
+        old_name_scope = self._current_name_scope.__enter__()
         self._pure_variable_scope = _pure_variable_scope(
             self._name_or_scope,
             reuse=self._reuse,
