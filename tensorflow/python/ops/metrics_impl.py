@@ -1054,10 +1054,11 @@ def mean_relative_error(labels, predictions, normalizer, weights=None,
   predictions, normalizer = confusion_matrix.remove_squeezable_dimensions(
       predictions, normalizer)
   predictions.get_shape().assert_is_compatible_with(normalizer.get_shape())
-  relative_errors = array_ops.where(
-      math_ops.equal(normalizer, 0.0),
-      array_ops.zeros_like(labels),
-      math_ops.div(math_ops.abs(labels - predictions), normalizer))
+
+  condition = math_ops.equal(normalizer, 0.0)
+  y = math_ops.div(math_ops.abs(labels - predictions), normalizer)
+  x = array_ops.zeros_like(labels, dtype=y.dtype)
+  relative_errors = array_ops.where(condition, x, y)
   return mean(relative_errors, weights, metrics_collections,
               updates_collections, name or 'mean_relative_error')
 
