@@ -2835,8 +2835,6 @@ class MeanRelativeErrorTest(test.TestCase):
       self.assertEqual(0.0, error.eval())
 
   def testLableSupportsNumericalTypes(self):
-    np_predictions = np.asarray([2, 4, 6, 8], dtype=np.float32)
-
     dtypes = [dtypes_lib.int32, dtypes_lib.float32, dtypes_lib.complex64]
     for dtype in dtypes:
       labels = tf.constant([1, 0], dtype=dtype)
@@ -2846,8 +2844,8 @@ class MeanRelativeErrorTest(test.TestCase):
       error, update_op = metrics.mean_relative_error(labels, predictions, normalizer)
       with self.test_session() as sess:
         sess.run(variables.local_variables_initializer())
-        self.assertEqual(0.0, sess.run(update_op))
-        self.assertEqual(0.5, error.eval())
+        self.assertEqual(0.5, sess.run(update_op))
+        self.assertEqual(0.0, error.eval())
 
 
 class MeanSquaredErrorTest(test.TestCase):
