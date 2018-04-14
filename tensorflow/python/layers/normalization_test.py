@@ -1122,6 +1122,67 @@ class BNTest(test.TestCase):
         self.assertAllClose(y_train, y_val_train, atol=1e-5)
         self.assertAllClose(y_test, y_val_test, atol=1e-5)
 
+  def testGhostBN2DimsWithRenorm(self):
+    shape = [6, 2]
+    virtual_batch_size = 3
+    beta = 2.
+    gamma = 3.
+    momentum = 0.8
+    renorm_momentum = 0.8
+    rmax = 1.1
+    rmin = 0.9
+    dmax = 0.1
+    epsilon = 1e-3
+    moving_means = np.zeros([2, 2], dtype=np.float32)
+    moving_vars = np.ones([2, 2], dtype=np.float32)
+
+    inp = array_ops.placeholder(dtypes.float32, shape)
+    is_training = array_ops.placeholder(dtypes.bool)
+    bn = normalization_layers.BatchNormalization(
+        axis=1,
+        momentum=momentum,
+        epsilon=epsilon,
+        beta_initializer=init_ops.constant_initializer(beta),
+        gamma_initializer=init_ops.constant_initializer(gamma),
+        renorm=True,
+        renorm_clipping={'rmax': rmax, 'rmin': rmin, 'dmax': dmax},
+        renorm_momentum=renorm_momentum,
+        virtual_batch_size=virtual_batch_size)
+    out = bn.apply(inp, training=is_training)
+    ghost_shape = ([virtual_batch_size,
+                    shape[0] // virtual_batch_size,
+                    shape[1]])
+
+    with self.test_session(use_gpu=True) as sess:
+      sess.run(variables.global_variables_initializer())
+      for _ in range(5):
+        x = np.random.random(shape)
+
+        sub_batched = np.reshape(x, ghost_shape)
+        means = np.mean(sub_batched, axis=0, keepdims=True)
+        variances = np.var(sub_batched, axis=0, keepdims=True)
+
+        avg_means = np.mean(means, axis=1, keepdims=True)
+        avg_variances = np.mean(variances, axis=1, keepdims=True)
+
+        moving_means = moving_means * momentum + avg_means * (1. - momentum)
+        moving_vars = moving_vars * momentum + avg_variances * (1. - momentum)
+
+        y_train = ((sub_batched - means) /
+                   (variances + epsilon) ** 0.5 * gamma) + beta
+        y_test = ((sub_batched - moving_means) /
+                  (moving_vars + epsilon) ** 0.5 * gamma) + beta
+
+        y_train = np.reshape(y_train, shape)
+        y_test = np.reshape(y_test, shape)
+
+        y_val_train, _, _ = sess.run([out] + bn.updates,
+                                     feed_dict={inp: x, is_training: True})
+        y_val_test = sess.run(out, feed_dict={inp: x, is_training: False})
+
+        self.assertAllClose(y_train, y_val_train, atol=1e-5)
+        self.assertAllClose(y_test, y_val_test, atol=1e-5)
+
   def testGhostBN4DimsAxis3(self):
     shape = [6, 10, 10, 3]
     virtual_batch_size = 2
